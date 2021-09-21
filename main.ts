@@ -24,6 +24,6 @@ r.withPath("/demo")
         },
     );
 
-app.listenAndServe({ port: 8000});
+app.listenAndServe({ port: 8000, hostname: "10.1.1.200" });
 
 console.log("🐉 Serveur listining");
