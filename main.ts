@@ -4,6 +4,7 @@ import {
     HttpResponse,
     RequestMethod,
 } from "https://deno.land/x/dragon@v1.1.6/lib/mod.ts";
+import { WebSocketClient, WebSocketServer } from "https://deno.land/x/websocket@v0.1.3/mod.ts";
 import { Client } from "https://deno.land/x/mysql/mod.ts";
 
 const client = await new Client().connect({
@@ -12,6 +13,8 @@ const client = await new Client().connect({
     password: "root",
     db: "hf3-embedded-webserver-test",
 });
+
+let wsClient: WebSocketClient;
 
 const app = new Application();
 
@@ -25,7 +28,8 @@ r.withPath("/hello")
         },
     );
 
-r.withPath(/temp\/(?<temp>[0-9]+\.?[0-9]*|\.[0-9]+)/u).withMethods(RequestMethod.GET)
+r.withPath(/temp\/(?<temp>[0-9]+\.?[0-9]*|\.[0-9]+)/u)
+    .withMethods(RequestMethod.GET)
     .handleFunc(
         async function (Request: HttpRequest, ResponseWriter: HttpResponse) {
             const { temp: temperature } = Request.params();
@@ -35,9 +39,34 @@ r.withPath(/temp\/(?<temp>[0-9]+\.?[0-9]*|\.[0-9]+)/u).withMethods(RequestMethod
                 "temp",
                 1000 * temp,
             ]);
+            ResponseWriter.end("");
         },
     );
 
-app.listenAndServe({ port: 8000, hostname: "10.1.1.200" });
+r.withPath(/send\/(?<message>([A-z])\w+)/u)
+    .withMethods(RequestMethod.GET)
+    .handleFunc(
+        async function (Request: HttpRequest, ResponseWriter: HttpResponse) {
+            const { message: msg } = Request.params();
+
+            if (wsClient !== undefined) {
+                wsClient.send(msg)
+                wsClient.on("message", function (message: string) {
+                    ResponseWriter.end("Send: " + msg + " Received: " + message);
+                });
+            }
+            else {
+                ResponseWriter.end("Couldn't send " + msg);
+            }
+        },
+    );
+
+const wss = new WebSocketServer(8080);
+wss.on("connection", function (ws: WebSocketClient) {
+    console.log("Connected")
+    wsClient = ws;
+});
+
+app.listenAndServe({ port: 8000, hostname: "10.130.68.182" });
 
 console.log("🐉 Serveur listining");
